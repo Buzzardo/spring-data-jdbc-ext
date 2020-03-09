@@ -1,0 +1,69 @@
+
+:sectnums!:
+
+[preface]
+[[_orcl.overview]]
+= Overview
+
+The Oracle Database is a powerful relational database that continues to lead the market in several areas.
+It has advanced support for replication and clustering, powerful support for stored procedures and support for advanced data types and XML data types.
+Many of these features aren't directly supported by the JDBC standard and Oracle has developed several extensions to their JDBC implementation to make access to these features possible.
+
+The _Spring Data JDBC Extensions_ project's support for the Oracle Database provides a simplified approach to gain access to these advanced features and at the same time provide this support in a fashion that is in line with the JDBC support provided by the Spring Framework and its JDBC abstraction.
+
+[[_orcl.overview_whats_covered]]
+== Features provided
+
+The majority of features provided by the Oracle Database and their JDBC implementation are already well supported by the core Spring Framework.
+There are however some advanced features not covered by the JDBC specification that provide some interesting functionality.
+The Spring Data JDBC Extension project provides explicit support for some of these features and it also provides documentation and examples how to take advantage of some of Oracle's JDBC extensions using standard Spring Framework APIs.
+
+The following lists the various features that are covered.
+Each feature is documented in more detail in the following chapters
+
+* {empty}
++##The RAC "Fast Connection Failover" provides the ability to
+        have a Spring application transparently failover when a database node
+        fails.#
+* {empty}
++##The AQ support provides the option of using a single local
+        transaction manager for both database and message access without
+        resorting to expensive distributed 2-phase commit transaction
+        management.#
+* {empty}
++##Custom classes, examples and documentation on how to use
+        Oracle JDBC extensions for their native XML Type.#
+* {empty}
++##Custom classes, examples and documentation on how to use
+        Oracle JDBC extensions for their advanced data types like STRUCT and
+        ARRAY.#
+* {empty}
++##This feature provides an API for customizing the connection
+        environment with Oracle specific session settings etc.#
+
+
+[[_orcl.requires]]
+== Requirements
+
+The requirements for using the features provided in the [class]``oracle`` module of the "Spring Data JDBC Extensions" project are listed below.
+
+* {empty}
++##The minimum Java version is now 1.7.#
+* {empty}
++##All Spring Framework features that are needed are provided in
+        Spring Framework version 4.1 or later.#
+* {empty}
++##All features are supported using the Oracle JDBC driver
+        12.1.0.2 or later.#
++##You can use a database compatible with this driver. This 
+        includes Oracle Database 12c R1, 11g R2 and 11g R1#
+* {empty}
++##Apache Commons Logging is used by the Spring Framework but it
+        can be replaced by the jcl-over-slf4j bridge provided by the SLF4J
+        project.#
+* {empty}
++##The Fast Connection Failover support requires using the Spring
+        Retry project (https://github.com/spring-projects/spring-retry).#
+
+
+:sectnums:

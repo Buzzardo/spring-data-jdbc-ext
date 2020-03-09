@@ -1,0 +1,14 @@
+
+:sectnums!:
+
+[preface]
+= Preface
+
+The Spring Data JDBC Extensions project provides advanced JDBC features that extends the support provided by the "spring-jdbc" module in the Spring Framework project.
+
+The bulk of the features in the Spring Data JDBC Extensions project is made up of code ported from the SpringSource project "Advanced Pack for Oracle Database" that was available for support subscription customers.
+We are now making this code available to all Spring users and any new developments will be made in the Spring Data JDBC Extensions project.
+
+There is also support for using the Querydsl SQL module to provide type-safe query, insert, update and delete functionality.
+
+:sectnums:

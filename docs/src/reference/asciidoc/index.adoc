@@ -1,0 +1,37 @@
+= Spring Data JDBC Extensions Reference Documentation
+Thomas Risberg
+:doctype: book
+:sectnums:
+:toc: left
+:icons: font
+:experimental:
+
+:leveloffset: 1
+include::preface.adoc[]
+:leveloffset: 0
+// <part>
+//         <title>Core JDBC Extensions</title>
+//         <partintro>
+//             <para>
+//                 This part of the reference documentation details the core extended JDBC support that can be used for any supported SQL database.
+//             </para>
+//         </partintro>
+//         <xi:include href="core-overview.xml"/>
+//         <xi:include href="core-support.xml"/>
+//     </part>
+
+// <part>
+//         <title>JDBC Extensions for the Oracle Database</title>
+//         <partintro>
+//             <para>
+//                 This part of the reference documentation details the extended JDBC support provided for the Oracle database.
+//             </para>
+//         </partintro>
+//         <xi:include href="oracle-overview.xml"/>
+//         <xi:include href="oracle-datasource.xml"/>
+//         <xi:include href="oracle-failover.xml"/>
+//         <xi:include href="oracle-streamsaq.xml"/>
+//         <xi:include href="oracle-xmltypes.xml"/>
+//         <xi:include href="oracle-datatypes.xml"/>
+//         <xi:include href="oracle-connection.xml"/>
+//     </part>

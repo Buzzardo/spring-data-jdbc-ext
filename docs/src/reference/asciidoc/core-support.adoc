@@ -1,0 +1,159 @@
+[[_core.support]]
+= Support classes that extend Spring features
+:doctype: book
+:sectnums:
+:toc: left
+:icons: font
+:experimental:
+:sourcedir: .
+
+The Spring Framework projects JDBC support is excellent but every now and then there are some features that seem useful, but might not warrant inclusion in the framework project itself.
+The Spring Data JDBC Extensions project provides a home for these type of extensions.
+
+[[_core.support.onetomany]]
+== Mapping a one-to-many relationship
+
+We often have to map one-to-many relationships in our database projects.
+A customer can have many addresses, an order can contain many line items and so on.
+We are now providing a [class]``ResultSetExtractor`` implementation to deal with this common task.
+
+Let`'s look at the schema definition first:
+
+[source,sql]
+----
+CREATE TABLE customer(
+  id BIGINT IDENTITY PRIMARY KEY, 
+  name VARCHAR(255));
+CREATE TABLE address (
+  id BIGINT IDENTITY PRIMARY KEY, 
+  customer_id BIGINT CONSTRAINT address_customer_ref 
+    FOREIGN KEY REFERENCES customer (id), 
+  street VARCHAR(255), 
+  city VARCHAR(255));
+----
+
+Two tables linked by a foreign key constraint.
+To map this we need two domain classes - [class]``Customer`` and [class]``Address`` where [class]``Customer`` has a Set of [class]``Addresse``s.
+
+[source,java]
+----
+public class Customer {
+
+  private Integer id;
+
+  private String name;
+
+  private Set<Address> addresses = new HashSet<Address>();
+
+  public Set<Address> getAddresses() {
+    return addresses;
+  }
+
+  public void addAddress(Address address) {
+    this.addresses.add(address);
+  }
+
+// other setters and getters
+
+}
+----
+
+[source,java]
+----
+public class Address {
+
+  private Integer id;
+
+  private String street;
+
+  private String city;
+
+// setters and getters
+
+}
+----
+
+Executing the following query we would potentially get multiple rows returned for each customer. 
+
+[source,java]
+----
+List<Customer> result = template.query(
+  "select customer.id, customer.name, address.id, " +
+    "address.customer_id, address.street, address.city " +
+    "from customer " +
+    "left join address on customer.id = address.customer_id " +
+    "order by customer.id",
+  resultSetExtractor);
+----
+
+To be able to handle the multiple rows we create a new [class]``CustomerAddressExtractor`` that extends the abstract class [class]``OneToManyResultSetExtractor``.
+We parameterize the [class]``OneToManyResultSetExtractor`` with the root class ([class]``Customer``), the child class ([class]``Address``), and the class for the primary and foreign key ([class]``Integer``).
+
+[source,java]
+----
+public class CustomerAddressExtractor extends
+    OneToManyResultSetExtractor<Customer, Address, Integer> {
+
+  public CustomerAddressExtractor() {
+    super(new CustomerMapper(), new AddressMapper());
+  }
+
+  @Override
+  protected Integer mapPrimaryKey(ResultSet rs) throws SQLException {
+    return rs.getInt("customer.id");
+  }
+
+  @Override
+  protected Integer mapForeignKey(ResultSet rs) throws SQLException {
+    if (rs.getObject("address.customer_id") == null) {
+      return null;
+    }
+    else {
+      return rs.getInt("address.customer_id");
+    }
+  }
+
+  @Override
+  protected void addChild(Customer root, Address child) {
+    root.addAddress(child);
+  }
+}
+----
+
+We need a way to match the primary key of the Customer with the foreign key of the Address so we provide mappings for these via the abstract methods [method]``mapPrimaryKey`` and [method]``mapForeignKey``.
+We have to take into account that there might not be an address record for every customer so the foreign key could be ``null``.
+We also need to add the mapped [class]``Address`` instances to the [class]``Customer`` instance.
+We do this by implementing the abstract method [class]``addChild``.
+We simply call the [method]``addAddress`` on the [class]``Customer`` class here.
+
+Looking at the constructor of the CustomerAddressExtractor we see that we call the super constructor providing [class]``RowMapper`` implementations for the [class]``Customer`` and the [class]``Address`` classes.
+These are standard [class]``RowMapper``s that we in this example provide as static inner classes.
+
+[source,java]
+----
+private static class CustomerMapper implements RowMapper<Customer> {
+
+  public Customer mapRow(ResultSet rs, int rowNum) throws SQLException {
+    Customer c = new Customer();
+    c.setId(rs.getInt("customer.id"));
+    c.setName(rs.getString("customer.name"));
+    return c;
+  }
+}
+----
+
+[source,java]
+----
+private static class AddressMapper implements RowMapper<Address> {
+
+  public Address mapRow(ResultSet rs, int rowNum) throws SQLException {
+    Address a = new Address();
+    a.setId(rs.getInt("address.id"));
+    a.setStreet(rs.getString("address.street"));
+    a.setCity(rs.getString("address.city"));
+    return a;
+  }
+}
+----
+
+We now have a complete solution for this common problem.

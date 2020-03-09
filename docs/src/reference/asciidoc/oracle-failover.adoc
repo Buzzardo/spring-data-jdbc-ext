@@ -1,0 +1,244 @@
+[[_orcl.failover]]
+= Fast Connection Failover
+:doctype: book
+:sectnums:
+:toc: left
+:icons: font
+:experimental:
+:sourcedir: .
+
+Oracle's RAC (Real Application Clusters) is an option that supports deployment of a single database across a cluster of servers, providing fault tolerance from hardware failures or other outages.
+Since a single database is served by a number of nodes, any node failure can be detected and subsequent operations can be directed to other nodes in the cluster.
+This support is provided by the "Fast Connection Failover" feature (FCF). When the failover occurs the current transaction is rolled back and a new transaction has to be initiated.
+
+Spring's FCF support detects the transaction failure and attempts to retry the entire transaction.
+If this retry is successful it means that the client of the failed application will be unaware of this failover and it will look like the transaction completed after a brief delay.
+
+The configuration for the FCF support is a two step configuration.
+First you need to configure a [class]``DataSource`` for RAC and second you need to configure an AOP advisor with a failover interceptor to handle the retries.
+
+[[_orcl.failover.config.datasource]]
+== DataSource Configuration
+
+We are going to need a DataSource that is capable of participating in a "Fast Connection Failover" scenario.
+The only one we have available is the [class]``oracle.jdbc.pool.OracleDataSource`` implementation that we will configure using the "orcl" namespace.
+This [class]``DataSource`` configured with some additional properties used for RAC.
+
+We will be using the following property file to specify the username and password for the following example.
+
+[source]
+----
+username=spring
+password=spring
+----
+
+The url used in this example is a two node RAC configuration using the thin driver.
+It is probably too long to fit on the screen or on the page so if you would like to see the entire url it's listed in the callout notes.
+
+[source,xml]
+----
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:orcl="http://www.springframework.org/schema/data/orcl"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       https://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+       http://www.springframework.org/schema/context
+       https://www.springframework.org/schema/context/spring-context-3.0.xsd
+       http://www.springframework.org/schema/data/orcl
+       https://www.springframework.org/schema/data/orcl/spring-data-orcl-1.0.xsd">
+
+    <orcl:pooling-datasource id="racDataSource"
+        url="jdbc:oracle:thin:@(description=(address_list=
+            (address=(host=rac1)(protocol=tcp)(port=1521))
+            (address=(host=rac2)(protocol=tcp)(port=1521)))
+            (connect_data=(service_name=racdb1)))"
+        properties-location="classpath:orcl.properties"
+        fast-connection-failover-enabled="true" 
+        ONS-configuration="rac1:6200,rac2:6200"/> 
+
+    <bean id="transactionManager" 
+          class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="racDataSource"/>
+    </bean>
+
+</beans>
+----
+// <calloutlist>
+//         <callout arearefs="rac.1.fcf">
+//           <para>The fast connection failover is enabled here.</para>
+//         </callout>
+// 
+//         <callout arearefs="rac.1.ons">
+//           <para>The ONS (Oracle Notification Service) configuration is defined
+//           here since we are using the thin driver for this example.</para>
+//         </callout>
+//       </calloutlist>
+
+
+[[_orcl.failover.config.aop]]
+== AOP Configuration for Fast Connection Failover Retry
+
+In order for the Fast Connection Failover to be transparent to the end user you need to consider the overall impact of this failover.
+The original transaction will fail and another transaction will be started to retry the same operation.
+You need to consider any non-transactional side effects that the failed transaction might have caused.
+You also need to consider work done while the transaction is suspended.
+This could happen if a method with a transactional attribute of "REQUIRES_NEW" is executed within the original transaction.
+
+Once you have considered any possible side effects, you can proceed to configure a RacFailoverInterceptor together with the AOP advisor and pointcut.
+The failover advisor must be before or at the same pointcut where the transaction advisor is applied.
+If the pointcuts for the failover advisor and the transaction advisor are at the same pointcut then the failover advisor must have a higher priority than the transaction advisor that it should wrap.
+
+For the AOP advisor configuration we use the "aop" namespace and for the [class]``RacFailoverInterceptor`` we use the `rac-failover-interceptor` tag from the "orcl" namespace.
+
+[[_orcl.failover.config.aop.advice]]
+=== Configuration when defining transactions using a<tx:advice> and an <aop:advisor>
+
+When using a [class]``<tx:advice>`` combined with an [class]``<aop:advisor>`` you simply add an additional [class]``<aop:advisor>`` for the RAC failover Interceptor referencing the [class]``<orcl:rac-failover-interceptor>`` element.
+You must make sure that the RAC failover interceptor comes before the transaction advice and you can do that by specifying the order attribute on the advisor for the RAC failover interceptor.
+Any advisor specified without an order automatically gets the lowest priority, so by specifying [class]``order="1"`` for the RAC failover interceptor we are assured this advice will come before the transaction advice.
+
+[source,xml]
+----
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:orcl="http://www.springframework.org/schema/data/orcl"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       https://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+       http://www.springframework.org/schema/aop
+       https://www.springframework.org/schema/aop/spring-aop-3.0.xsd
+       http://www.springframework.org/schema/tx
+       https://www.springframework.org/schema/tx/spring-tx-3.0.xsd
+       http://www.springframework.org/schema/data/orcl
+       https://www.springframework.org/schema/data/orcl/spring-data-orcl-1.0.xsd">
+
+    <aop:config>
+        <aop:advisor pointcut="execution(* *..PetStoreFacade.insertOrder(..))"  
+            advice-ref="racFailoverInterceptor" order="1"/>
+        <aop:advisor pointcut="execution(* *..PetStoreFacade.*(..))"  
+            advice-ref="txAdvice"/>
+    </aop:config>
+
+    <orcl:rac-failover-interceptor id="racFailoverInterceptor"/> 
+
+    <tx:advice id="txAdvice">
+        <tx:attributes>
+            <tx:method name="insert*"/>
+            <tx:method name="update*"/>
+            <tx:method name="*" read-only="true"/>
+        </tx:attributes>
+    </tx:advice>
+
+</beans>
+----
+// <calloutlist>
+//           <callout arearefs="fcf.1.aop.int">
+//             <para>The advisor defined for the RAC failover interceptor. This
+//             must have a higher order than the transaction advisor. We do use
+//             the same pointcut</para>
+//           </callout>
+// 
+//           <callout arearefs="fcf.1.aop.tx">
+//             <para>The standard transaction advice defined here.</para>
+//           </callout>
+// 
+//           <callout arearefs="fcf.1.aop.adv">
+//             <para>The RAC failover interceptor is defined using the
+//             <classname>rac-failover-interceptor</classname> element of the
+//             "orcl" namespace.</para>
+//           </callout>
+//         </calloutlist>
+
+
+[[_orcl.failover.config.aop.annotation]]
+=== Configuration when defining transactions using @Transactionalannotation
+
+When using a <tx:annotation-driven> configuration you add [class]``<aop:config>`` entry with an [class]``<aop:advisor>`` element for the RAC failover Interceptor referencing the [class]``<orcl:rac-failover-interceptor>`` element.
+You must make sure that the RAC failover interceptor comes before the transaction advice and you can do that by specifying the order attribute on the advisor for the RAC failover interceptor.
+Any <tx:annotation-driven> specified without an order automatically gets the lowest priority, so by specifying [class]``order="1"`` for the RAC failover interceptor we are assured this advice will come before the transaction advice.
+
+[source,xml]
+----
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:orcl="http://www.springframework.org/schema/data/orcl"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       https://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+       http://www.springframework.org/schema/aop
+       https://www.springframework.org/schema/aop/spring-aop-3.0.xsd
+       http://www.springframework.org/schema/tx
+       https://www.springframework.org/schema/tx/spring-tx-3.0.xsd
+       http://www.springframework.org/schema/data/orcl
+       https://www.springframework.org/schema/data/orcl/spring-data-orcl-1.0.xsd">
+
+    <aop:config>
+        <aop:advisor 
+            pointcut="@annotation(org.springframework.transaction.annotation.Transactional)" 
+            advice-ref="racFailoverInterceptor" order="1"/>
+    </aop:config>
+
+    <orcl:rac-failover-interceptor id="racFailoverInterceptor"/> 
+
+    <tx:annotation-driven/> 
+
+</beans>
+----
+// <calloutlist>
+//           <callout arearefs="fcf.1.aop.adv">
+//             <para>The advisor defined for the RAC failover interceptor. This
+//             must have a higher order than the transaction advisor. We use an
+//             <classname>@annotation</classname> pointcut referencing the
+//             <classname>@Transactional</classname> annotation.</para>
+//           </callout>
+// 
+//           <callout arearefs="fcf.1.aop.int">
+//             <para>The RAC failover interceptor is defined using the
+//             <classname>rac-failover-interceptor</classname> element of the
+//             "orcl" namespace.</para>
+//           </callout>
+// 
+//           <callout arearefs="fcf.1.aop.anno">
+//             <para>The standard transaction annotation-driven element defined
+//             here.</para>
+//           </callout>
+//         </calloutlist>
+
+
+[[_orcl.failover.config.interceptor]]
+== Configuration options for <rac-failover-interceptor>
+
+There is a number of optional attributes you can use to configure the ``rac-failover-interceptor``.
+
+.`<rac-failover-interceptor>` attributesettings
+[cols="1,1,1,1", options="header"]
+|===
+| Attribute
+| Required
+| Default
+| Description
+
+|``recoverable-error-codes``
+|No
+|3113, 3114, 1033, 1034, 1089, 17002, 17008, 17410
+|A comma separated list of integer error codes that will be
+            used instead of the default set.
+
+|``max-number-of-retries``
+|No
+|5
+|The maximum number of times the retry will be
+            performed.
+
+|``back-off-policy``
+|No
+|[class]``NoBackOffPolicy``
+|A specific back off policy to be used. This is a reference
+            to a bean that implements [class]``BackOffPolicy
+            *``
+|===
+
+* [class]``org.springframework.batch.retry.backoff.BackOffPolicy``

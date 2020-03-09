@@ -1,0 +1,48 @@
+
+:sectnums!:
+
+[preface]
+[[_core.overview]]
+= Overview
+
+The JDBC support in the Spring Framework is extensive and covers the most commonly used features, but there are some new usage scenarios like type-safe queries that warrants some extension to be provided.
+The core part of the _Spring Data JDBC Extensions_ project provides this type of extension and it can be used together with any supported SQL database.
+
+[[_core.overview_whats_covered]]
+== Features provided
+
+The following lists the various features that are covered.
+Each feature is documented in more detail in the following chapters
+
+* {empty}
++##The core support provides extensions to the Spring Framework
+        JDBC support.#
+
+
+* {empty}
++##The Querydsl project provides a way to work with many
+        datastore in a type-safe manner. This includes support for working
+        with SQL databases. We provide the "glue" that let's you easily work
+        with Querydsl in a Spring based project.#
+
+
+[[_core.requires]]
+== Requirements
+
+The requirements for using the features provided in the [class]``core`` module of the "Spring Data JDBC Extensions" project are listed below.
+
+* {empty}
++##The minimum Java version is now 1.7.#
+* {empty}
++##All Spring Framework features that are needed are provided in
+        Spring Framework version 4.1 or later.#
+* {empty}
++##Apache Commons Logging is used by the Spring Framework but it
+        can be replaced by the jcl-over-slf4j bridge provided by the SLF4J
+        project.#
+* {empty}
++##The Querydsl support requires the use of Querydsl SQL module
+        version 3.x or later.#
+
+
+:sectnums:
